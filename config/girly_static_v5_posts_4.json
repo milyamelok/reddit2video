@@ -1,0 +1,100 @@
+{
+  "flow": "girly_static_v5",
+  "description": "Canonical four-post smoke/input set for the static_girly_2 flow.",
+  "run_id_prefix": "e2e-4",
+  "defaults": {
+    "target_language": "Russian",
+    "target_platform": "short-form vertical video",
+    "target_duration_sec": 60,
+    "risk_tolerance": "medium",
+    "source_quality_gate": {
+      "enabled": true,
+      "model": "gemini-3-flash-preview",
+      "fallback_models": [],
+      "min_score": 70,
+      "accept_safe_mode": false,
+      "concurrency": 2
+    },
+    "voiceover_model": "gemini-3.1-pro-preview",
+    "layout_recipe": "b_layout_staged_vfx_no_labels",
+    "vfx_timing": {
+      "mode": "cached_gemini_or_deterministic",
+      "model": "gemini-3-flash-preview"
+    },
+    "avatar_overlay": {
+      "enabled": false,
+      "source_video_path": "",
+      "auto_discover_source": true,
+      "width_px": 240,
+      "position": "bottom_right"
+    },
+    "media_selector_model": "gemini-3-flash-preview",
+    "media_query_rewrite_enabled": true,
+    "media_query_rewrite_model": "gemini-3-flash-preview",
+    "media_query_rewrite_max_slots_per_item": 4,
+    "media_query_rewrite_timeout_sec": 10,
+    "media_provider_search_timeout_sec": 15,
+    "media_selection_mode": "heuristic",
+    "media_max_slots_per_item": 28,
+    "media_candidates_per_provider": 18,
+    "media_contact_sheet_size": 8,
+    "asset_download_concurrency": 3,
+    "tts_provider": "inworld",
+    "voice_id": "Svetlana",
+    "quality_gate": true,
+    "quality_gate_min_scenes": 8,
+    "quality_gate_min_duration_sec": 20,
+    "quality_gate_min_media_scene_ratio": 0.8,
+    "quality_gate_min_unique_assets": 16,
+    "quality_gate_min_video_assets": 0,
+    "quality_gate_min_real_media_scene_ratio": 0.35,
+    "quality_gate_max_generated_visual_scene_ratio": 0.65,
+    "quality_gate_max_text_only_run": 1,
+    "quality_gate_require_audio": true,
+    "render_visual_smoke": true,
+    "render_visual_smoke_fail": true,
+    "render_av_integrity": true,
+    "render_av_integrity_fail": true,
+    "gemini_quality_oracle": true,
+    "gemini_quality_oracle_model": "gemini-3.1-pro-preview",
+    "publication_readiness_fail": true,
+    "pronunciation_repair": true,
+    "pronunciation_repair_model": "gemini-3.1-pro-preview",
+    "pronunciation_repair_strategy": "full_revoice",
+    "providers": ["serper_images", "pinterest"],
+    "pinterest_connector_mode": "api",
+    "pinterest_api_scope": "all",
+    "giphy_connector_mode": "api",
+    "giphy_api_key_source": "web",
+    "giphy_web_key_cache_path": "outputs/cache/giphy_web_api_key.json",
+    "fps": 30,
+    "width": 720,
+    "height": 1280
+  },
+  "posts": [
+    {
+      "post_id": "1ttwsvc",
+      "subreddit": "loseit",
+      "title": "How Do People Drink Lattes and Eat Pastries Regularly",
+      "permalink": "https://www.reddit.com/r/loseit/comments/1ttwsvc/how_do_people_drink_lattes_and_eat_pastries/"
+    },
+    {
+      "post_id": "1ttuell",
+      "subreddit": "Biohackers",
+      "title": "Everyone's chasing cold plunges but the sauna data is quietly way stronger",
+      "permalink": "https://www.reddit.com/comments/1ttuell/"
+    },
+    {
+      "post_id": "1tt4jc9",
+      "subreddit": "Biohackers",
+      "title": "My biohacking stack (31M, MD PhD)",
+      "permalink": "https://www.reddit.com/comments/1tt4jc9/"
+    },
+    {
+      "post_id": "1tthm53",
+      "subreddit": "Biohackers",
+      "title": "What is the cheapest biohack you learned in the last 3 months?",
+      "permalink": "https://www.reddit.com/comments/1tthm53/"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    env_file:
+      - .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    volumes:
+      - .:/app
+      # If you prefer service-account auth over the Vertex API key, mount the
+      # JSON file here and keep GOOGLE_APPLICATION_CREDENTIALS pointing to it.
+      # - ${PATH_TO_VERTEX_JSON}:${PATH_TO_VERTEX_JSON}:ro
+    depends_on:
+      kafka:
+        condition: service_started
+    command: ["sleep", "infinity"]
+
+  kafka:
+    image: bitnami/kafka:3.7
+    environment:
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9094:9094"
+    volumes:
+      - kafka_data:/bitnami/kafka
+
+volumes:
+  kafka_data:

@@ -1,0 +1,396 @@
+version: 1
+period:
+  hours: 24
+use_cache: true
+cache_dir: outputs/cache
+
+kafka:
+  bootstrap_servers_env: KAFKA_BOOTSTRAP_SERVERS
+  default_bootstrap_servers: localhost:9094
+  topic_strategy: node_output_topic
+  topics:
+    reddit_discovery:
+      output: reddit2video.node.reddit_discovery.v1
+      dlq: reddit2video.node.reddit_discovery.dlq.v1
+    voiceover_script:
+      input: reddit2video.node.reddit_discovery.v1
+      output: reddit2video.node.voiceover_script.v1
+      dlq: reddit2video.node.voiceover_script.dlq.v1
+    scene_pipeline:
+      input: reddit2video.node.voiceover_script.v1
+      output: reddit2video.node.scene_pipeline.v1
+      dlq: reddit2video.node.scene_pipeline.dlq.v1
+    storyboard_asset_plan:
+      input: reddit2video.node.voiceover_script.v1
+      output: reddit2video.node.storyboard_asset_plan.v1
+      dlq: reddit2video.node.storyboard_asset_plan.dlq.v1
+    media_resolver:
+      input: reddit2video.node.scene_pipeline.v1
+      output: reddit2video.node.media_resolver.v1
+      dlq: reddit2video.node.media_resolver.dlq.v1
+    html_layout:
+      input: reddit2video.node.scene_pipeline.v1
+      output: reddit2video.node.html_layout.v1
+      dlq: reddit2video.node.html_layout.dlq.v1
+    render_bundle:
+      input: reddit2video.node.html_layout.v1
+      output: reddit2video.node.render_bundle.v1
+      dlq: reddit2video.node.render_bundle.dlq.v1
+    remotion_render:
+      input: reddit2video.node.render_bundle.v1
+      output: reddit2video.node.remotion_render.v1
+      dlq: reddit2video.node.remotion_render.dlq.v1
+    render_visual_audit:
+      input: reddit2video.node.render_bundle.v1
+      output: reddit2video.node.render_visual_audit.v1
+      dlq: reddit2video.node.render_visual_audit.dlq.v1
+    google_image_planner:
+      input: reddit2video.node.scene_pipeline.v1
+      output: reddit2video.node.google_image_planner.v1
+      dlq: reddit2video.node.google_image_planner.dlq.v1
+    google_image_resolver:
+      input: reddit2video.node.google_image_planner.v1
+      output: reddit2video.node.google_image_resolver.v1
+      dlq: reddit2video.node.google_image_resolver.dlq.v1
+    stable_google_layout:
+      input: reddit2video.node.google_image_resolver.v1
+      output: reddit2video.node.stable_google_layout.v1
+      dlq: reddit2video.node.stable_google_layout.dlq.v1
+
+nodes:
+  reddit_discovery:
+    enabled: true
+    step: step-0
+    cache: true
+    output_path: outputs/reddit-wellness-24h.json
+    params:
+      posts: 20
+      hours: 24
+  voiceover_script:
+    enabled: true
+    step: step-3
+    cache: true
+    model: gemini-3.1-pro-preview
+    prompt_version: storyboard_v2
+    master_prompt_path: prompts/voiceover_storyboard_master_v3.md
+    runtime_prompt_path: prompts/voiceover_storyboard_runtime_single_v3.md
+    validation_retries: 1
+    concurrency: 2
+    input_path: outputs/reddit-wellness-24h.json
+    output_path: outputs/voiceover-scripts.json
+    params:
+      target_language: Russian
+      target_platform: short-form vertical video
+      target_duration_sec: 60
+      risk_tolerance: medium
+  pipeline_v3:
+    enabled: true
+    step: pipeline-v3
+    description: "Canonical storyboard -> audio/timings/assets -> post-asset Remotion layout -> Remotion still repair -> final render."
+    voiceover_input_path: outputs/reddit-thread-dataset-month-250/reddit-voiceover-selected-60.json
+    voiceover_output_path: outputs/pipeline-v3/voiceover-scripts.json
+    scene_units_output_path: outputs/pipeline-v3/scene-units.json
+    scene_pack_output_path: outputs/pipeline-v3/scene-pack.json
+    media_plan_output_path: outputs/pipeline-v3/media-plan.json
+    media_resolver_output_path: outputs/pipeline-v3/media-resolver.json
+    render_bundle_output_path: outputs/pipeline-v3/render-bundle.json
+    visual_audit_output_path: outputs/pipeline-v3/render-visual-audit.json
+    videos_output_dir: outputs/pipeline-v3/videos
+    stage1_voiceover:
+      model: gemini-3.1-pro-preview
+      prompt_version: storyboard_v2
+      master_prompt_path: prompts/voiceover_storyboard_master_v3.md
+      runtime_prompt_path: prompts/voiceover_storyboard_runtime_single_v3.md
+      runtime_batch_prompt_path: prompts/voiceover_storyboard_runtime_batch_v3.md
+      target_language: Russian
+      concurrency: 24
+      validation_retries: 1
+    stage2_assets_and_audio:
+      audio_timing_source: elevenlabs_alignment
+      asset_source_of_truth: storyboard_v2.scenes[].visual_assets[]
+      asset_appearance_timing_policy: appears_on_word_from_stage1_then_word_timing_alignment
+      source_mapping:
+        Google Images: serper_images
+        Giphy: giphy
+        Telegram stickers: giphy
+        Stock/Footage: pinterest
+        AI-generated: vertex_image
+    stage3_layout:
+      layout_after_asset_resolution: true
+      pass_actual_asset_dimensions: true
+      scene_types:
+        - AVATAR
+        - TEXT_ONLY
+        - COLLAGE
+      single_image_scene_type_allowed: false
+      avatar_layout:
+        background_source: pinterest
+        background_query_source: scene.background
+        avatar_position: bottom_right
+        avatar_area_fraction: 0.2
+        text_role: center_marquee
+      fill_order_validator: true
+    stage4_repair:
+      sample_policy: remotion_still_at_0_9_of_each_scene
+      playwright_qa: false
+      max_repair_passes: 1
+    stage5_render:
+      default_width: 720
+      default_height: 1280
+      fps: 30
+  girly_static_v5:
+    enabled: true
+    step: pipeline-v5-girly-static
+    description: "Parallel Stage 1 -> slot-aware assets -> deterministic static_girly_2 scene clone flow. Does not replace preview15 or static_girly."
+    voiceover_input_path: outputs/reddit-thread-dataset-month-250/reddit-voiceover-selected-60.json
+    voiceover_output_path: outputs/girly-static-v5/voiceover-scripts.json
+    scene_units_output_path: outputs/girly-static-v5/scene-units.json
+    media_plan_output_path: outputs/girly-static-v5/media-plan.json
+    media_resolver_output_path: outputs/girly-static-v5/media-resolver.json
+    html_output_path: outputs/girly-static-v5/static-girly.html
+    stills_output_dir: outputs/girly-static-v5/stills
+    stage1_voiceover:
+      model: gemini-3.1-pro-preview
+      prompt_version: storyboard_v2
+      master_prompt_path: prompts/voiceover_storyboard_master_v3.md
+      runtime_prompt_path: prompts/voiceover_storyboard_runtime_single_v3.md
+      runtime_batch_prompt_path: prompts/voiceover_storyboard_runtime_batch_v3.md
+      target_language: Russian
+      concurrency: 24
+      validation_retries: 1
+    stage2_assets:
+      asset_source_of_truth: storyboard_v2.scenes[].visual_assets[]
+      asset_slot_fields:
+        - visual_assets[].girly_asset_role
+        - visual_assets[].preferred_slot
+        - girly_scene.slot_plan[].visual_asset_index
+      source_mapping:
+        Google Images: serper_images
+        Giphy: giphy
+        Telegram stickers: giphy
+        Stock/Footage: pinterest
+        AI-generated: vertex_image
+    girly_scene_adapter:
+      enabled: true
+      style_html_path: assets/style_packs/static_girly_2/index.html
+      scene_registry_path: config/girly_scene_registry.json
+      primary_selection_field: storyboard_v2.scenes[].girly_scene.scene_id
+      fallback_selection: deterministic_from_scene_semantics
+      render_policy: clone_static_girly_scene_root_and_fill_slots
+      allow_freeform_html_layout: false
+      allow_new_scene_css: false
+      text_policy:
+        primary_text_source: scenes[].voiceover_line
+        allow_spoken_fragment_slots: true
+        allow_ui_label_slots: true
+        forbid_new_summary_headlines: true
+      repair_policy:
+        allow_crop_scale_position_zindex_linebreaks: true
+        forbid_layout_family_change: true
+  scene_pipeline:
+    enabled: true
+    step: step-4
+    cache: true
+    model: gemini-3-flash-preview
+    concurrency: 2
+    input_path: outputs/voiceover-scripts.json
+    output_path: outputs/scene-pipeline.json
+    tts_provider: elevenlabs
+    tts_prep_with_gemini: false
+    tts_prep_model: gemini-3.1-pro-preview
+    voice_id: XrExE9yKIg1WjnnlVkGX
+    voice_name: Matilda - Knowledgable, Professional
+    target_scene_count: 22
+    repair_retries: 1
+    style_pack_path: assets/style_packs/static_girly
+    params:
+      target_duration_sec: 60
+      style_library_hint: "Girly wellness/biohacking blogger style: cream base, pink and sky-blue accents, bold condensed Russian typography, cute meme energy, casual photos, GIFs, and meme/reaction videos. Full-frame background video should be rare: 3-5 scenes per 60s video. Keep the nerve with 4-7 GIPHY-style meme/reaction/funny-object beats. No emoji stickers, standalone stickers, or interface screenshots; emoji is allowed only inside text."
+  storyboard_asset_plan:
+    enabled: true
+    step: step-4b
+    cache: true
+    input_path: outputs/voiceover-scripts.json
+    output_path: outputs/storyboard-media-plan.json
+    params:
+      description: "Project storyboard_v2 visual_assets into resolver-compatible media_slots without new Gemini visual planning. Can run in parallel with audio/scene generation."
+  html_layout:
+    enabled: true
+    step: step-5
+    cache: false
+    model: gemini-3-flash-preview
+    concurrency: 1
+    input_path: outputs/scene-pipeline.json
+    media_input_path: outputs/media-resolver.json
+    output_path: outputs/html-layouts.json
+    out_dir: outputs/html-layouts
+    style_html_path: assets/style_packs/static_girly/index.html
+    reference_screens_dir: outputs/html-experiments/reference-screens
+    with_reference_screens: true
+    repair_retries: 1
+    repair_if_needed: true
+    visual_gate_max_screenshots: 4
+    min_scene_count: 18
+    max_scene_count: 25
+    chrome_path: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  media_resolver:
+    enabled: true
+    step: step-6
+    cache: true
+    input_path: outputs/scene-pipeline.json
+    output_path: outputs/media-resolver.json
+    out_dir: outputs/media
+    screenshot_dir: outputs/media-screens
+    providers:
+      - giphy
+      - pinterest
+      - serper_images
+    giphy_connector_mode: auto
+    pinterest_connector_mode: auto
+    pinterest_request_dump_path: ""
+    pinterest_api_scope: auto
+    pinterest_cache_api_responses: true
+    giphy_api_scope: auto
+    giphy_api_key_source: web
+    giphy_web_key_cache_path: outputs/cache/giphy_web_api_key.json
+    giphy_rating: pg
+    giphy_lang: en
+    giphy_bundle: ""
+    giphy_download_assets: true
+    giphy_download_concurrency: 8
+    giphy_cache_api_responses: true
+    brightdata_zone: serp_api1
+    brightdata_size: large
+    brightdata_cache_api_responses: true
+    serper_gl: us
+    serper_hl: en
+    serper_cache_api_responses: true
+    candidates_per_provider: 9
+    contact_sheet_size: 9
+    pinterest_scroll_steps: 3
+    selection_mode: gemini
+    media_selector_model: gemini-3-flash-preview
+    selected_per_slot: 1
+    max_slots_per_item: 100
+    ai_image_model: gemini-3.1-flash-image-preview
+    ai_image_generation_enabled: true
+    browser_mode: playwright
+    dolphin_profile_id: ""
+    dolphin_local_api_url: http://127.0.0.1:3001
+    dolphin_fallback_to_playwright: true
+    concurrency: 1
+    chrome_path: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  render_bundle:
+    enabled: true
+    step: step-7a
+    cache: false
+    scene_input_path: outputs/scene-pipeline.json
+    html_input_path: outputs/html-layouts.json
+    media_input_path: outputs/media-resolver.json
+    word_timing_input_path: outputs/html-word-timing-experiment.json
+    output_path: outputs/render-bundle.json
+    scene_asset_dir: remotion/public/render-assets
+    audio_public_dir: remotion/public/audio
+    remotion_data_path: remotion/src/render-bundle.generated.json
+    fps: 30
+    width: 1080
+    height: 1920
+    visual_timing_policy: gapless_extend_previous_scene_until_next_scene_start
+    render_mode: dom
+    subtitle_mode: off
+    chrome_path: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+  remotion_render:
+    enabled: true
+    step: step-7b
+    bundle_path: outputs/render-bundle.json
+    project_dir: remotion
+    output_dir: outputs/videos
+    concurrency: 1
+  render_visual_audit:
+    enabled: true
+    step: step-7c
+    input_path: outputs/render-bundle.json
+    output_path: outputs/render-visual-audit.json
+    out_dir: outputs/render-visual-audit
+    max_scenes: 0
+    remotion_project_dir: remotion
+    use_gemini: true
+
+  google_images_visual_v1:
+    enabled: true
+    step: google-images-v1
+    out_dir: outputs/google-images-visual-v1
+    planner:
+      cache: true
+      model: gemini-3-flash-preview
+      input_path: outputs/scene-pipeline.json
+      output_path: outputs/google-images-visual-v1/google-image-plans.json
+      concurrency: 1
+      scene_concurrency: 20
+      max_text_only_scenes: 3
+    resolver:
+      cache: true
+      input_path: outputs/google-images-visual-v1/google-image-plans.json
+      output_path: outputs/google-images-visual-v1/google-image-resolver.json
+      screenshot_dir: outputs/google-images-visual-v1/screens
+      candidates_per_query: 10
+      min_image_side_px: 720
+      selection_mode: gemini
+      selector_model: gemini-3-flash-preview
+      concurrency: 4
+      chrome_path: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+      serper_gl: us
+      serper_hl: en
+      serper_cache_api_responses: true
+    stable_layout:
+      scene_input_path: outputs/scene-pipeline.json
+      plan_input_path: outputs/google-images-visual-v1/google-image-plans.json
+      resolver_input_path: outputs/google-images-visual-v1/google-image-resolver.json
+      output_path: outputs/google-images-visual-v1/google-html-layouts.json
+      out_dir: outputs/google-images-visual-v1/html
+    review:
+      scene_input_path: outputs/scene-pipeline.json
+      plan_input_path: outputs/google-images-visual-v1/google-image-plans.json
+      resolver_input_path: outputs/google-images-visual-v1/google-image-resolver.json
+      out_dir: outputs/google-images-visual-v1/review
+
+  annotation_pipeline:
+    enabled: true
+    step: research-annotation
+    cache: true
+    api_mode: vertex-key
+    input_dir: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline
+    output_dir: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline
+    visual_model: gemini-3-flash-preview
+    text_model: gemini-3-flash-preview
+    visual_batch_size: 10
+    visual_concurrency: 24
+    text_batch_size: 100
+    text_concurrency: 24
+    stages:
+      stage01_image_as_is:
+        batch_size: 10
+        output_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage01-image-as-is/stage01-image-as-is.jsonl
+      stage02_visual_taxonomy:
+        batch_size: 50
+        output_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage02-visual-taxonomy/stage02-visual-taxonomy.jsonl
+      stage03_visual_text_representation:
+        batch_size: 50
+        output_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage03-visual-text-representation/stage03-visual-text-representation.jsonl
+      stage04_spoken_signal:
+        batch_size: 100
+        output_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage04-spoken-signal/stage04-spoken-signal.jsonl
+      stage05_crossmodal_relation:
+        batch_size: 50
+        input_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage05-crossmodal-inputs.jsonl
+        output_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage05-crossmodal-relation/stage05-crossmodal-relation.jsonl
+      stage06_irony_humor:
+        batch_size: 50
+        input_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage06-irony-inputs.jsonl
+        output_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage06-irony-humor/stage06-irony-humor.jsonl
+      stage07_route_query:
+        batch_size: 50
+        input_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage07-route-query-inputs.jsonl
+        output_path: outputs/instagram-reels-direct-2026-05-17/annotation-pipeline/stage07-route-query/stage07-route-query.jsonl
+    repair_retries: 3
+    retry_backoff_sec: 3
